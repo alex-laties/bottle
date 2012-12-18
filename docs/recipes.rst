@@ -11,6 +11,7 @@
 .. _GzipFilter: http://www.cherrypy.org/wiki/GzipFilter
 .. _cherrypy: http://www.cherrypy.org
 .. _heroku: http://heroku.com
+.. _django: http://www.djangoproject.com
 
 Recipes
 =============
@@ -41,7 +42,55 @@ There is no built-in support for sessions because there is no *right* way to do 
       return 'Test counter: %d' % s['test']
 
     bottle.run(app=app)
+    
+Using Django Sessions (if you're crazy)
+----------------------------
 
+If you already use django to login clients, you can access django sessions by rolling your own middleware.
+    
+    import os
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'settings'
+    from django.conf import settings
+    SessionStore = __import__(settings.SESSION_ENGINE, fromlist=['']).SessionStore
+    
+    class DjangoSessionWSGIMiddleware(object):
+      transform = False
+        
+      def __init__(self, app):
+        self.app = app
+        
+      def __call__(self, environ, start_response):
+        if 'HTTP_COOKIE' in environ:
+          cookie = {s.split('=')[0].strip: s.split('=')[1].strip() for s in environ['HTTP_COOKIE'].split(';')}
+          if 'sessionid' in cookie:
+            session = SessionStore(session_key=cookie['sessionid'])
+            if session.exists(cookie['sessionid']):
+              session.load()
+              user_id = session.get('_auth_user_id')
+              # From here, you can load the django user object
+              # and attach it to the environ object.
+              # For example:
+              from django.contrib.auth.models import User
+              environ['CURRENT_USER'] = User.objects.get(id=user_id)
+              
+              return self.app(environ, start_response) # this triggers the next part of the stack (generally bottle)
+        
+        # This code executes if the user has not logged in via django.
+        start_response('401 Unauthorized', [('Content-type', 'text/plain')])
+        return 'Not logged in.'
+    
+    import bottle
+    app = DjangoSessionWSGIMiddleware(bottle.app())
+    
+    @bottle.route('/', method='GET')
+    def hello():
+      # notice that CURRENT_USER key in bottle.request.environ is
+      # the same key we used in the DjangoSessionWSGIMiddleware
+      user = bottle.request.environ.get('CURRENT_USER') 
+      return 'Hello from bottle, %s' % str(user)
+      
+    bottle.run(app=app)
+      
 Debugging with Style: Debugging Middleware
 --------------------------------------------------------------------------------
 
