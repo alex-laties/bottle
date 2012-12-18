@@ -46,10 +46,10 @@ There is no built-in support for sessions because there is no *right* way to do 
 Using Django Sessions (if you're crazy)
 ----------------------------
 
-If you already use django to login clients, you can access django sessions by rolling your own middleware.
+If you already use django to login clients, you can access django sessions by rolling your own middleware.::
     
     import os
-    os.environ['DJANGO_SETTINGS_MODULE'] = 'settings'
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'settings' #this assumes that your django project is in your PYTHONPATH
     from django.conf import settings
     SessionStore = __import__(settings.SESSION_ENGINE, fromlist=['']).SessionStore
     
